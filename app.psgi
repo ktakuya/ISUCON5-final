@@ -13,9 +13,18 @@ builder {
     enable 'Static',
         path => qr!^/(?:(?:css|fonts|js)/|favicon\.ico$)!,
         root => File::Basename::dirname($root_dir) . '/static';
-    enable 'Session::Cookie',
-        session_key => "airisu_session",
-        secret => $ENV{ISUCON5_SESSION_SECRET} || 'tonymoris',
-    ;
+    enable 'Session::Simple',
+        store => Cache::Memcached::Fast->new({
+            servers => [ { address => "203.104.208.240:11211",noreply=>0} ],
+            serialize_methods => [ sub { $encoder->encode($_[0])}, 
+                                   sub { $decoder->decode($_[0])} ],
+        }),
+        httponly => 1,
+        cookie_name => "isu5_session",
+        keep_empty => 0;
+#    enable 'Session::Cookie',
+#        session_key => "airisu_session",
+#        secret => $ENV{ISUCON5_SESSION_SECRET} || 'tonymoris',
+#    ;
     $app;
 };
