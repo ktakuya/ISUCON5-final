@@ -18,7 +18,7 @@ use Redis::Jet;
 sub db {
     state $db ||= do {
         my %db = (
-            host => $ENV{ISUCON5_DB_HOST} || 'localhost',
+            host => $ENV{ISUCON5_DB_HOST} || '203.104.208.242',
             port => $ENV{ISUCON5_DB_PORT} || 5432,
             username => $ENV{ISUCON5_DB_USER} || 'isucon',
             password => $ENV{ISUCON5_DB_PASSWORD},
@@ -34,7 +34,7 @@ sub db {
     };
 }
 
-my $jet = Redis::Jet->new( server => '203.104.208.241:6379' );
+my $jet = Redis::Jet->new( server => '203.104.208.241:6379', utf8 => 1 );
 
 my ($SELF, $C);
 sub session : lvalue {
