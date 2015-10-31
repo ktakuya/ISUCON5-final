@@ -227,7 +227,7 @@ my %endpoints = (
   ken => {
     uri => "http://api.five-final.isucon.net:8080/%s"
   },
-  kens2 => {
+  ken2 => {
     uri => "http://api.five-final.isucon.net:8080/"
   },
   surname => {
