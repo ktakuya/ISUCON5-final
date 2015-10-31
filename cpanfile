@@ -11,3 +11,5 @@ requires "URL::Encode::XS";
 requires "Plack::Middleware::Session::Simple";
 requires "Cache::Memcached::Fast";
 requires "Sereal";
+requires "Redis";
+requires "Redis::Jet";

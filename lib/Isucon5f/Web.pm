@@ -13,6 +13,7 @@ use IO::Socket::SSL qw(SSL_VERIFY_NONE);
 use String::Util qw(trim);
 use File::Basename qw(dirname);
 use File::Spec;
+use Redis::Jet;
 
 sub db {
     state $db ||= do {
@@ -32,6 +33,8 @@ sub db {
         );
     };
 }
+
+my $jet = Redis::Jet->new( server => '203.104.208.241:6379' );
 
 my ($SELF, $C);
 sub session : lvalue {
@@ -101,13 +104,14 @@ post '/signup' => [qw(set_global)] => sub {
 INSERT INTO users (email,salt,passhash,grade) VALUES (?,?,digest(? || ?, 'sha512'),?) RETURNING id
 SQL
     my $default_arg = +{};
-    my $insert_subscription_query = <<SQL;
-INSERT INTO subscriptions (user_id,arg) VALUES (?,?)
-SQL
+#     my $insert_subscription_query = <<SQL;
+# INSERT INTO subscriptions (user_id,arg) VALUES (?,?)
+# SQL
     {
         my $txn = db->txn_scope;
         my $user_id = db->select_one($insert_user_query, $email, $salt, $salt, $password, $grade);
-        db->query($insert_subscription_query, $user_id, to_json($default_arg));
+        $jet->command("set", sprintf('isucon5f:subscriptions:%d', $user_id), to_json($default_arg));
+        # db->query($insert_subscription_query, $user_id, to_json($default_arg));
         $txn->commit;
     }
     $c->redirect('/login');
@@ -159,10 +163,12 @@ get '/modify' => [qw(set_global)] => sub {
     my ($self, $c) = @_;
     my $user = current_user();
     $c->halt(403) if !$user;
-    my $query = <<SQL;
-SELECT arg FROM subscriptions WHERE user_id=?
-SQL
-    my $arg = db->select_one($query, $user->{id});
+
+#     my $query = <<SQL;
+# SELECT arg FROM subscriptions WHERE user_id=?
+# SQL
+    # my $arg = db->select_one($query, $user->{id});
+    my $arg = $jet->command(('get', sprintf('isucon5f:subscriptions:%d', $user->{id})));
     $c->render('modify.tx', { user => $user, arg => $arg });
 };
 
@@ -176,15 +182,17 @@ post '/modify' => [qw(set_global)] => sub {
     my $keys = $params->{keys} ? [split(/\s+/, trim($params->{keys}))] : undef;
     my $param_name = $params->{param_name} ? trim($params->{param_name}) : undef;
     my $param_value = $params->{param_value} ? trim($params->{param_value}) : undef;
-    my $select_query = <<SQL;
-SELECT arg FROM subscriptions WHERE user_id=? FOR UPDATE
-SQL
-    my $update_query = <<SQL;
-UPDATE subscriptions SET arg=? WHERE user_id=?
-SQL
+#     my $select_query = <<SQL;
+# SELECT arg FROM subscriptions WHERE user_id=? FOR UPDATE
+# SQL
+#     my $update_query = <<SQL;
+# UPDATE subscriptions SET arg=? WHERE user_id=?
+# SQL
     {
-        my $txn = db->txn_scope;
-        my $arg_json = db->select_one($select_query, $user->{id});
+        my $arg_json = $jet->command(('get', sprintf('isucon5f:subscriptions:%d', $user->{id})));
+
+        # my $txn = db->txn_scope;
+        # my $arg_json = db->select_one($select_query, $user->{id});
         my $arg = from_json($arg_json);
         if (!$arg->{$service}) { $arg->{$service} = +{}; }
         if ($token) { $arg->{$service}{token} = $token; }
@@ -193,8 +201,11 @@ SQL
             if (!$arg->{$service}{params}) { $arg->{$service}{params} = +{}; }
             $arg->{$service}{params}{$param_name} = $param_value;
         }
-        db->query($update_query, to_json($arg), $user->{id});
-        $txn->commit;
+        my $json = to_json($arg);
+        # db->query($update_query, $json , $user->{id});
+        $jet->command("set", sprintf('isucon5f:subscriptions:%d', $user->{id}), $json);
+
+        # $txn->commit;
     }
     $c->redirect('/modify');
 };
@@ -212,19 +223,51 @@ sub fetch_api {
     return decode_json($res->content);
 }
 
+my %endpoints = (
+  ken => {
+    uri => "http://api.five-final.isucon.net:8080/%s"
+  },
+  kens2 => {
+    uri => "http://api.five-final.isucon.net:8080/"
+  },
+  surname => {
+    uri => "http://api.five-final.isucon.net:8081/surname"
+  },
+  givenname => {
+    uri => "http://api.five-final.isucon.net:8081/givenname"
+  },
+  tenki => {
+    token_type => "param",
+    token_key => "zipcode",
+    uri => "http://api.five-final.isucon.net:8988/"
+  },
+  perfectsec => {
+    token_type => "header",
+    token_key => "X-PERFECT-SECURITY-TOKEN",
+    uri => "https://api.five-final.isucon.net:8443/tokens"
+  },
+  perfectsec_attacked => {
+    token_type => "header",
+    token_key => "X-PERFECT-SECURITY-TOKEN",
+    uri => "https://api.five-final.isucon.net:8443/attacked_list"
+  }
+);
+
 get '/data' => [qw(set_global)] => sub {
     my ($self, $c) = @_;
     my $user = current_user();
     $c->halt(403) if !$user;
+    my $arg_json = $jet->command(('get', sprintf('isucon5f:subscriptions:%d', $user->{id})));
 
-    my $arg_json = db->select_one("SELECT arg FROM subscriptions WHERE user_id=?", $user->{id});
+    # my $arg_json = db->select_one("SELECT arg FROM subscriptions WHERE user_id=?", $user->{id});
     my $arg = from_json($arg_json);
 
     my $data = [];
 
     while (my ($service, $conf) = each(%$arg)) {
-        my $row = db->select_row("SELECT meth, token_type, token_key, uri FROM endpoints WHERE service=?", $service);
-        my $method = $row->{meth};
+        # my $row = db->select_row("SELECT meth, token_type, token_key, uri FROM endpoints WHERE service=?", $service);
+        my $row = $endpoints{$service};
+        my $method = "GET";
         my $token_type = $row->{token_type};
         my $token_key = $row->{token_key};
         my $uri_template = $row->{uri};
@@ -248,8 +291,12 @@ get '/data' => [qw(set_global)] => sub {
 
 get '/initialize' => sub {
     my ($self, $c) = @_;
+
     my $file = File::Spec->rel2abs("../../sql/initialize.sql", dirname(dirname(__FILE__)));
     system("psql", "-f", $file, "isucon5f");
+    for my $rel (@{db->select_all("SELECT arg, user_id FROM subscriptions")}) {
+      $jet->command("set", sprintf('isucon5f:subscriptions:%d', $rel->{user_id}), $rel->{arg});
+    }
     [200];
 };
 
