@@ -104,15 +104,16 @@ post '/signup' => [qw(set_global)] => sub {
 INSERT INTO users (email,salt,passhash,grade) VALUES (?,?,digest(? || ?, 'sha512'),?) RETURNING id
 SQL
     my $default_arg = +{};
-#     my $insert_subscription_query = <<SQL;
-# INSERT INTO subscriptions (user_id,arg) VALUES (?,?)
-# SQL
+    my $insert_subscription_query = <<SQL;
+INSERT INTO subscriptions (user_id,arg) VALUES (?,?)
+SQL
     {
         my $txn = db->txn_scope;
         my $user_id = db->select_one($insert_user_query, $email, $salt, $salt, $password, $grade);
-        $jet->command("set", sprintf('isucon5f:subscriptions:%d', $user_id), to_json($default_arg));
-        # db->query($insert_subscription_query, $user_id, to_json($default_arg));
+        db->query($insert_subscription_query, $user_id, to_json($default_arg));
         $txn->commit;
+        $jet->command("set", sprintf('isucon5f:subscriptions:%d', $user_id), to_json($default_arg));
+
     }
     $c->redirect('/login');
 };
@@ -185,13 +186,13 @@ post '/modify' => [qw(set_global)] => sub {
 #     my $select_query = <<SQL;
 # SELECT arg FROM subscriptions WHERE user_id=? FOR UPDATE
 # SQL
-#     my $update_query = <<SQL;
-# UPDATE subscriptions SET arg=? WHERE user_id=?
-# SQL
+    my $update_query = <<SQL;
+UPDATE subscriptions SET arg=? WHERE user_id=?
+SQL
     {
         my $arg_json = $jet->command(('get', sprintf('isucon5f:subscriptions:%d', $user->{id})));
 
-        # my $txn = db->txn_scope;
+        my $txn = db->txn_scope;
         # my $arg_json = db->select_one($select_query, $user->{id});
         my $arg = from_json($arg_json);
         if (!$arg->{$service}) { $arg->{$service} = +{}; }
@@ -202,10 +203,11 @@ post '/modify' => [qw(set_global)] => sub {
             $arg->{$service}{params}{$param_name} = $param_value;
         }
         my $json = to_json($arg);
-        # db->query($update_query, $json , $user->{id});
+        db->query($update_query, $json , $user->{id});
+
+        $txn->commit;
         $jet->command("set", sprintf('isucon5f:subscriptions:%d', $user->{id}), $json);
 
-        # $txn->commit;
     }
     $c->redirect('/modify');
 };
