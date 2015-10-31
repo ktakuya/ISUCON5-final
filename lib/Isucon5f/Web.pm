@@ -266,7 +266,7 @@ get '/data' => [qw(set_global)] => sub {
 
     while (my ($service, $conf) = each(%$arg)) {
         # my $row = db->select_row("SELECT meth, token_type, token_key, uri FROM endpoints WHERE service=?", $service);
-        my $row = %endpoints{$service};
+        my $row = $endpoints{$service};
         my $method = "GET";
         my $token_type = $row->{token_type};
         my $token_key = $row->{token_key};
