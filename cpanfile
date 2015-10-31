@@ -7,3 +7,7 @@ requires "Plack::Session";
 requires "Furl";
 requires "IO::Socket::SSL";
 requires "String::Util";
+requires "URL::Encode::XS";
+requires "Plack::Middleware::Session::Simple";
+requires "Cache::Memcached::Fast";
+requires "Sereal";
