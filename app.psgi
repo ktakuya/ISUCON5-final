@@ -9,6 +9,8 @@ use Sereal;
 
 my $root_dir = File::Basename::dirname(__FILE__);
 
+my $decoder = Sereal::Decoder->new();
+my $encoder = Sereal::Encoder->new();
 my $app = Isucon5f::Web->psgi($root_dir);
 builder {
     enable 'ReverseProxy';
