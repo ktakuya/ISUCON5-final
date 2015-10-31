@@ -223,6 +223,36 @@ sub fetch_api {
     return decode_json($res->content);
 }
 
+my %endpoints = (
+  ken => {
+    uri => "http://api.five-final.isucon.net:8080/%s"
+  },
+  kens2 => {
+    uri => "http://api.five-final.isucon.net:8080/"
+  },
+  surname => {
+    uri => "http://api.five-final.isucon.net:8081/surname"
+  },
+  givenname => {
+    uri => "http://api.five-final.isucon.net:8081/givenname"
+  },
+  tenki => {
+    token_type => "param",
+    token_key => "zipcode",
+    uri => "http://api.five-final.isucon.net:8988/"
+  },
+  perfectsec => {
+    token_type => "header",
+    token_key => "X-PERFECT-SECURITY-TOKEN",
+    uri => "https://api.five-final.isucon.net:8443/tokens"
+  },
+  perfectsec_attacked => {
+    token_type => "header",
+    token_key => "X-PERFECT-SECURITY-TOKEN",
+    uri => "https://api.five-final.isucon.net:8443/attacked_list"
+  }
+);
+
 get '/data' => [qw(set_global)] => sub {
     my ($self, $c) = @_;
     my $user = current_user();
@@ -235,8 +265,9 @@ get '/data' => [qw(set_global)] => sub {
     my $data = [];
 
     while (my ($service, $conf) = each(%$arg)) {
-        my $row = db->select_row("SELECT meth, token_type, token_key, uri FROM endpoints WHERE service=?", $service);
-        my $method = $row->{meth};
+        # my $row = db->select_row("SELECT meth, token_type, token_key, uri FROM endpoints WHERE service=?", $service);
+        my $row = %endpoints{$service};
+        my $method = "GET";
         my $token_type = $row->{token_type};
         my $token_key = $row->{token_key};
         my $uri_template = $row->{uri};
