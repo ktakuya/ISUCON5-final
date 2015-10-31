@@ -4,6 +4,8 @@ use lib "$FindBin::Bin/lib";
 use File::Basename;
 use Plack::Builder;
 use Isucon5f::Web;
+use Cache::Memcached::Fast;
+use Sereal;
 
 my $root_dir = File::Basename::dirname(__FILE__);
 
